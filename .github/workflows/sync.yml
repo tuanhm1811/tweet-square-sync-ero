@@ -1,0 +1,55 @@
+name: Tweet to Binance Square (ero)
+
+on:
+  schedule:
+    # ~moi 30 phut, LECH phut so voi repo cu (5,20,35,50) de khong doc X cung luc.
+    # GitHub chay theo gio UTC, co the tre 10-30 phut luc cao diem.
+    - cron: '12,42 * * * *'
+  workflow_dispatch:   # cho phep bam "Run workflow" de chay tay / test
+
+permissions:
+  contents: write      # can quyen nay de luu state/last_ids.json
+
+concurrency:
+  group: tweet-sync-ero
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      # >>> Danh sach @username X, ngan cach bang dau phay (bo dau @). <<<
+      # Them nguon moi = them ten vao day, vi du: "ero_crypto, kol_khac"
+      TWITTER_USERNAMES: "ero_crypto"
+      # Muon chay thu ma KHONG dang len Square: doi thanh "1"
+      DRY_RUN: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Cai thu vien
+        run: pip install requests requests-oauthlib
+
+      - name: Dong bo tweet -> Binance Square
+        env:
+          TWITTER_API_KEY:            ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET:         ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN:       ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_SECRET:      ${{ secrets.TWITTER_ACCESS_SECRET }}
+          BINANCE_SQUARE_OPENAPI_KEY: ${{ secrets.BINANCE_SQUARE_OPENAPI_KEY }}
+        run: python tweet_to_square_ci.py
+
+      - name: Luu trang thai (neu thay doi)
+        run: |
+          if [[ -n "$(git status --porcelain state/last_ids.json)" ]]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add state/last_ids.json
+            git commit -m "update last ids [skip ci]"
+            git push
+          else
+            echo "Khong co thay doi state, bo qua commit."
+          fi
